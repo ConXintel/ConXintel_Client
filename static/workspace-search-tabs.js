@@ -22,7 +22,7 @@
   var ESTIMATE_DELAY_MS = 5000;
 
   var SOCIAL_PLATFORMS = (function () {
-    var fallback = ["gov.ph", "facebook.com", "instagram.com", "linkedin.com", "twitter.com"];
+    var fallback = ["gxx.ph", "fxxxxxxx.com", "ixxxxxxxx.com", "lxxxxxxx.com", "txxxxxx.com"];
     var el = document.getElementById("search-crawl-hosts-data");
     if (!el) return fallback;
     try {
