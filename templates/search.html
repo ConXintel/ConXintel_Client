@@ -1,0 +1,39 @@
+{% extends "layout_workspace.html" %}
+{% block title %}Search — ConX Client{% endblock %}
+{% block page %}
+<section class="search-page-shell client-page-shell">
+  <div class="login-card-wrap search-card-wrap">
+    <div class="login-card-head">
+      <p class="text-xs font-mono uppercase tracking-wider text-cyan-400 mb-2">Workspace</p>
+      <h1 class="text-2xl font-bold mb-2">Investigation search</h1>
+      <p class="text-sm text-muted-foreground">
+        Pick a search type, enter what you are authorized to query, then submit.
+      </p>
+      {% if account %}
+      <p class="text-sm text-muted-foreground mt-2">
+        Shared credits: <strong>{{ account.credits }}</strong> · Period: {{ account.monthly_search_used }}/{{ account.monthly_search_limit }}
+      </p>
+      {% if account.credits is defined and account.credits <= 5 %}
+      <p class="login-flash login-flash--error mt-2">Shared credits low: {{ account.credits }} remaining.</p>
+      {% elif account.monthly_search_limit and account.monthly_search_used >= (account.monthly_search_limit * 0.9) %}
+      <p class="login-flash login-flash--error mt-2">Shared search cap almost reached: {{ account.monthly_search_used }}/{{ account.monthly_search_limit }}.</p>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    {% include "partials/client_search_form.html" %}
+
+    <p class="login-disclaimer">
+      Submitting confirms you accept responsibility for lawful use of results.
+    </p>
+  </div>
+</section>
+
+<script type="application/json" id="search-crawl-hosts-data">["gov.ph","facebook.com","instagram.com","linkedin.com","twitter.com"]</script>
+{% include "partials/search_loading_overlay.html" %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script src="{{ url_for('static', filename='workspace-search-tabs.js') }}" defer></script>
+{% endblock %}

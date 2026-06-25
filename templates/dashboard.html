@@ -1,0 +1,241 @@
+{% extends "layout_workspace.html" %}
+{% block title %}Dashboard — ConX Client{% endblock %}
+{% block page %}
+<section class="client-page-shell workspace-dashboard-shell">
+  <div class="client-dashboard-head">
+    <div>
+      <h1 class="workspace-dashboard-title">Dashboard</h1>
+      <p class="workspace-billing-page-subtitle">
+        Shared ConX account: {{ config.conx_owner_email or '—' }} · {{ config.conx_package or account.package or '—' }}
+      </p>
+    </div>
+    <button type="button" class="btn-secondary-outline text-sm" id="client-dashboard-refresh">Refresh status</button>
+  </div>
+
+  {% if api_error %}
+  <div class="client-alert-banner client-alert-banner--critical" id="client-api-banner" role="alert">
+    <p class="client-alert-banner-title">ConX API connection problem</p>
+    <p class="client-alert-banner-text" id="client-api-banner-text">{{ api_error }} <a href="{{ url_for('settings') }}" class="link-animated link-animated-cyan">Open Settings</a></p>
+  </div>
+  {% else %}
+  <div class="client-alert-banner client-alert-banner--critical" id="client-api-banner" role="alert" hidden>
+    <p class="client-alert-banner-title">ConX API connection problem</p>
+    <p class="client-alert-banner-text" id="client-api-banner-text"></p>
+  </div>
+  {% endif %}
+
+  <div class="client-alert-banner client-alert-banner--warn" id="client-search-health-banner" role="alert" {% if not search_health.degraded %}hidden{% endif %}>
+    <p class="client-alert-banner-title">Search upstream may be degraded</p>
+    <p class="client-alert-banner-text" id="client-search-health-text">
+      {% if search_health.reachable %}{{ search_health.live_count }} of {{ search_health.total_count }} search servers live.{% else %}Could not reach ConX search health endpoint.{% endif %}
+    </p>
+  </div>
+
+  {% if data_store.level == 'warn' or data_store.level == 'critical' %}
+  <div class="client-alert-banner client-alert-banner--{{ 'critical' if data_store.level == 'critical' else 'warn' }}" role="alert">
+    <p class="client-alert-banner-title">Client data store is {{ data_store.store_size_label }}</p>
+    <p class="client-alert-banner-text">
+      Report cache: {{ data_store.report_context_count }}/{{ data_store.report_context_max }}.
+      {% if data_store.level == 'critical' %}Saves may slow or fail.{% else %}Consider exporting logs and trimming cached reports.{% endif %}
+    </p>
+  </div>
+  {% endif %}
+
+  {% if account and account.credits is defined and account.credits <= 5 %}
+  <div class="client-alert-banner client-alert-banner--warn" role="alert">
+    <p class="client-alert-banner-title">Shared credits low ({{ account.credits }} remaining)</p>
+    <p class="client-alert-banner-text">Top up the ConX wallet before team searches are blocked.</p>
+  </div>
+  {% endif %}
+
+  {% if attention_flags %}
+  <section class="client-attention-section mb-4" aria-label="Needs attention">
+    <h2 class="workspace-dashboard-usage-title">Needs attention</h2>
+    <div class="client-attention-list">
+      {% for flag in attention_flags %}
+      <a href="{{ flag.href }}" class="client-attention-flag client-attention-flag--{{ flag.level }}">
+        <span class="client-attention-flag-title">{{ flag.title }}</span>
+        <span class="client-attention-flag-detail">{{ flag.detail }}</span>
+      </a>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <nav class="client-dashboard-actions mb-4" aria-label="Quick actions">
+    <a href="{{ url_for('search') }}" class="client-dashboard-action client-dashboard-action--primary">New search</a>
+    <a href="{{ url_for('team') }}" class="client-dashboard-action">Team</a>
+    <a href="{{ url_for('logs') }}" class="client-dashboard-action">Logs</a>
+    <a href="{{ url_for('security') }}" class="client-dashboard-action">Security{% if not owner_totp_enabled %}<span class="client-action-note">2FA off</span>{% endif %}</a>
+    <a href="{{ url_for('settings') }}" class="client-dashboard-action">Settings</a>
+  </nav>
+
+  <section class="client-jobs-section mb-4" id="client-dashboard-jobs" {% if not active_jobs %}hidden{% endif %}>
+    <h2 class="workspace-dashboard-usage-title">Team search jobs</h2>
+    <ul class="client-jobs-list" id="client-dashboard-jobs-list">
+      {% for job in active_jobs %}
+      <li class="client-job-item">
+        <span class="client-job-status client-job-status--{{ job.status }}">{{ job.status }}</span>
+        <span>{{ job.actor }} · {{ job.search_type|replace('_', ' ')|title }} · {{ job.age_label }}</span>
+        {% if job.error %}<span class="client-job-error">{{ job.error }}</span>{% endif %}
+        <a href="{{ url_for('search', type=job.search_type) }}" class="link-animated link-animated-cyan text-sm">Open search</a>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  {% if recent_searches %}
+  <article class="admin-panel admin-panel--raised mb-6">
+    <div class="flex items-center justify-between gap-3 mb-3 flex-wrap">
+      <h2 class="text-lg font-semibold">Recent team searches</h2>
+      <div class="flex gap-3 items-center">
+        <button type="button" class="client-reveal-toggle" id="client-dashboard-reveal-toggle" aria-pressed="false">Show query values</button>
+        <a href="{{ url_for('logs') }}" class="link-animated link-animated-cyan text-sm">All logs</a>
+      </div>
+    </div>
+    <ul class="client-recent-list">
+      {% for row in recent_searches %}
+      <li class="client-recent-item">
+        <div>
+          <p class="text-xs text-muted-foreground">{{ row.actor }} · {{ row.search_type|replace('_', ' ')|title }}</p>
+          <p class="client-recent-value" data-masked="{{ row.display_value_masked }}" data-full="{{ row.display_value_full }}">{{ row.display_value_masked }}</p>
+        </div>
+        <div class="client-recent-actions">
+          <a href="{{ row.rerun_url }}" class="link-animated link-animated-cyan text-xs">Re-run</a>
+          <time class="text-xs text-muted-foreground">{{ row.created_at }}</time>
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </article>
+  {% endif %}
+
+  {% if not account %}
+  <p class="login-flash login-flash--error">Could not load account from ConX. Check server URL and API token in setup.</p>
+  {% else %}
+  <div class="client-stat-grid client-dashboard-stat-cards">
+    <article class="admin-stat-card admin-stat-card--credits">
+      <div class="admin-stat-card-head">
+        <span class="admin-stat-card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="8" cy="8" r="6" />
+            <path d="M18.09 10.37A6 6 0 1 1 10.34 18" />
+            <path d="M7 6h1v4" />
+            <path d="m7 10 2.5-2.5" />
+            <path d="M17 14h1v4" />
+            <path d="m17 18 2.5-2.5" />
+          </svg>
+        </span>
+        <p class="admin-stat-card-label">Wallet credits</p>
+      </div>
+      <p class="admin-stat-card-value">{{ account.credits }}</p>
+    </article>
+    <article class="admin-stat-card admin-stat-card--api">
+      <div class="admin-stat-card-head">
+        <span class="admin-stat-card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M3 3v18h18" />
+            <path d="M18 17V9" />
+            <path d="M13 17V5" />
+            <path d="M8 17v-3" />
+          </svg>
+        </span>
+        <p class="admin-stat-card-label">Subscription usage</p>
+      </div>
+      <p class="admin-stat-card-value">{{ account.monthly_search_used }} / {{ account.monthly_search_limit }}</p>
+    </article>
+    <article class="admin-stat-card admin-stat-card--users">
+      <div class="admin-stat-card-head">
+        <span class="admin-stat-card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+            <circle cx="9" cy="7" r="4" />
+            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+          </svg>
+        </span>
+        <p class="admin-stat-card-label">Team members</p>
+      </div>
+      <p class="admin-stat-card-value">{{ team_count }}</p>
+    </article>
+    <article class="admin-stat-card admin-stat-card--expiry admin-stat-card--expiry-none">
+      <div class="admin-stat-card-head">
+        <span class="admin-stat-card-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 2v4" />
+            <path d="M16 2v4" />
+            <rect width="18" height="18" x="3" y="4" rx="2" />
+            <path d="M3 10h18" />
+          </svg>
+        </span>
+        <p class="admin-stat-card-label">Billing period</p>
+      </div>
+      <p class="admin-stat-card-value admin-stat-card-value--small">{{ account.billing_period_label or '—' }}</p>
+    </article>
+  </div>
+  {% endif %}
+
+  <section class="workspace-dashboard-usage client-system-section" aria-labelledby="client-system-heading">
+    <h2 id="client-system-heading" class="workspace-dashboard-usage-title">Host resources</h2>
+    <p class="workspace-dashboard-chart-sub mb-3">Live CPU and memory on this ConX Client server.</p>
+    <div class="client-chart-grid client-system-chart-grid">
+      <article class="workspace-dashboard-chart-card">
+        <p class="workspace-dashboard-chart-title">Host RAM usage</p>
+        <p class="workspace-dashboard-chart-sub" id="client-memory-live">Loading live memory stats…</p>
+        <div class="workspace-dashboard-chart-canvas-wrap">
+          <canvas id="client-chart-memory" aria-label="System memory usage over time"></canvas>
+        </div>
+      </article>
+      <article class="workspace-dashboard-chart-card">
+        <p class="workspace-dashboard-chart-title">Host CPU usage</p>
+        <p class="workspace-dashboard-chart-sub" id="client-cpu-live">Loading live CPU stats…</p>
+        <div class="workspace-dashboard-chart-canvas-wrap">
+          <canvas id="client-chart-cpu" aria-label="System CPU usage over time"></canvas>
+        </div>
+      </article>
+    </div>
+  </section>
+
+  {% if account %}
+  <section class="workspace-dashboard-usage" aria-labelledby="client-usage-heading">
+    <h2 id="client-usage-heading" class="workspace-dashboard-usage-title">Team usage</h2>
+    <div class="client-chart-grid workspace-dashboard-usage-grid">
+      <article class="workspace-dashboard-chart-card">
+        <p class="workspace-dashboard-chart-title">Credits remaining</p>
+        <div class="workspace-dashboard-chart-canvas-wrap workspace-dashboard-chart-canvas-wrap--doughnut">
+          <canvas id="chart-credits"></canvas>
+        </div>
+      </article>
+      <article class="workspace-dashboard-chart-card">
+        <p class="workspace-dashboard-chart-title">Searches per day</p>
+        <p class="workspace-dashboard-chart-sub">Last 30 days (client log)</p>
+        <div class="workspace-dashboard-chart-canvas-wrap">
+          <canvas id="chart-daily"></canvas>
+        </div>
+      </article>
+      <article class="workspace-dashboard-chart-card">
+        <p class="workspace-dashboard-chart-title">Searches per month</p>
+        <div class="workspace-dashboard-chart-canvas-wrap">
+          <canvas id="chart-monthly"></canvas>
+        </div>
+      </article>
+      <article class="workspace-dashboard-chart-card">
+        <p class="workspace-dashboard-chart-title">By team member</p>
+        <div class="workspace-dashboard-chart-canvas-wrap workspace-dashboard-chart-canvas-wrap--bar">
+          <canvas id="chart-actors"></canvas>
+        </div>
+      </article>
+    </div>
+  </section>
+  {% endif %}
+</section>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+<script id="client-dashboard-data" type="application/json">{{ charts | tojson }}</script>
+<script id="client-system-stats-config" type="application/json">{{ {"memory_url": url_for("dashboard_api_system_memory"), "cpu_url": url_for("dashboard_api_system_cpu")} | tojson }}</script>
+<script src="{{ url_for('static', filename='client-dashboard.js') }}" defer></script>
+<script src="{{ url_for('static', filename='client-dashboard-live.js') }}" defer></script>
+<script src="{{ url_for('static', filename='client-privacy-toggle.js') }}" defer></script>
+{% endblock %}

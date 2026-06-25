@@ -1,0 +1,126 @@
+{% extends "layout_workspace.html" %}
+{% block title %}Settings — ConX Client{% endblock %}
+{% block page %}
+<section class="client-page-shell admin-shell client-settings-page">
+  <header class="admin-head">
+    <div>
+      <p class="text-xs font-mono uppercase tracking-wider text-cyan-400 mb-2">Workspace</p>
+      <h1 class="text-2xl font-bold">Settings</h1>
+      <p class="text-sm text-muted-foreground mt-2">
+        Manage your ConX API connection and how this workspace appears to your team.
+      </p>
+    </div>
+  </header>
+
+  <form method="post" class="client-settings-form" enctype="multipart/form-data">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+    <div class="admin-panel admin-panel--raised">
+      <h2 class="text-lg font-semibold mb-1">Organization branding</h2>
+      <p class="text-sm text-muted-foreground mb-4">
+        Shown on sign-in, navigation, and the browser tab. Upload a new file to replace the current logo.
+      </p>
+      <div class="client-settings-fields">
+        <label class="login-field">
+          <span class="login-label">Organization logo</span>
+          <div class="client-setup-logo-row">
+            <img
+              src="{{ client_logo_url }}{% if config.custom_logo %}?v={{ config.custom_logo }}{% endif %}"
+              alt=""
+              width="52"
+              height="52"
+              class="client-setup-logo-preview"
+              id="settings-logo-preview"
+            />
+            <div class="client-setup-logo-upload">
+              <input
+                class="login-input client-setup-logo-input"
+                type="file"
+                name="logo"
+                id="settings-logo-input"
+                accept="image/png,image/jpeg,image/webp,image/svg+xml,.svg"
+              />
+              <span class="login-help">PNG, JPG, WebP, or SVG up to 2 MB.</span>
+              {% if config.custom_logo %}
+              <label class="client-settings-logo-reset">
+                <input type="checkbox" name="remove_logo" value="1" id="settings-remove-logo" />
+                <span>Reset to default ConX logo</span>
+              </label>
+              {% else %}
+              <span class="login-help">No custom logo yet — the default ConX logo is in use.</span>
+              {% endif %}
+            </div>
+          </div>
+        </label>
+        <label class="login-field">
+          <span class="login-label">Organization name</span>
+          <input class="login-input" name="organization_name" value="{{ config.organization_name or 'My team' }}" />
+        </label>
+      </div>
+    </div>
+
+    <div class="admin-panel admin-panel--raised mb-6">
+      <h2 class="text-lg font-semibold mb-1">Owner sign-in password</h2>
+      <p class="text-sm text-muted-foreground mb-4">Change the password used to sign in to this client app (not your ConX account password).</p>
+      <div class="client-settings-fields">
+        <label class="login-field"><span class="login-label">Current password</span><input class="login-input" type="password" name="current_password" autocomplete="current-password" /></label>
+        <label class="login-field"><span class="login-label">New password</span><input class="login-input" type="password" name="new_password" autocomplete="new-password" minlength="8" /></label>
+        <label class="login-field"><span class="login-label">Confirm new password</span><input class="login-input" type="password" name="confirm_password" autocomplete="new-password" minlength="8" /></label>
+      </div>
+      <button type="submit" class="btn-secondary-outline mt-3" name="form_action" value="change_owner_password">Update owner password</button>
+    </div>
+
+    <div class="admin-panel admin-panel--raised">
+      <h2 class="text-lg font-semibold mb-1">ConX API connection</h2>
+      <p class="text-sm text-muted-foreground mb-4">
+        Team searches use this ConX server URL and API token. Paste a fresh token from ConX → API Access if searches fail with invalid token.
+      </p>
+      <div class="client-settings-fields">
+        <label class="login-field">
+          <span class="login-label">ConX server URL</span>
+          <input class="login-input" name="conx_url" required value="{{ config.conx_url or '' }}" placeholder="http://127.0.0.1:8989" />
+        </label>
+        <label class="login-field">
+          <span class="login-label">ConX API token</span>
+          <input class="login-input" name="api_token" placeholder="Paste new token to replace, or leave blank to keep current" autocomplete="off" />
+          <span class="login-help">Current token is stored locally and not shown. Enter a new value only when rotating the key.</span>
+        </label>
+        {% if config.conx_owner_email %}
+        <p class="text-sm text-muted-foreground">
+          Linked account: <strong>{{ config.conx_owner_email }}</strong> · {{ config.conx_package or '—' }}
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div class="client-settings-actions">
+      <button type="submit" class="btn-primary">Save settings</button>
+    </div>
+  </form>
+</section>
+{% endblock %}
+{% block scripts %}
+{{ super() }}
+<script>
+(function () {
+  var input = document.getElementById("settings-logo-input");
+  var preview = document.getElementById("settings-logo-preview");
+  var removeLogo = document.getElementById("settings-remove-logo");
+  if (!input || !preview) return;
+  input.addEventListener("change", function () {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    preview.src = URL.createObjectURL(file);
+    if (removeLogo) removeLogo.checked = false;
+  });
+  if (removeLogo) {
+    removeLogo.addEventListener("change", function () {
+      if (removeLogo.checked) {
+        input.value = "";
+        preview.src = "{{ url_for('static', filename='logo.svg') }}";
+      }
+    });
+  }
+})();
+</script>
+{% endblock %}

@@ -1,0 +1,34 @@
+{% extends "root.html" %}
+{% block body_class %} page-workspace-client{% if workspace_page_class %}{{ workspace_page_class }}{% endif %}{% endblock %}
+{% block layout %}
+<div class="workspace-layout">
+  {% include "partials/sidebar.html" %}
+  <div class="workspace-main">
+    <header class="workspace-mobile-topbar" aria-label="Workspace menu">
+      <button
+        type="button"
+        class="workspace-sidebar-toggle nav-menu-toggle"
+        id="workspace-sidebar-toggle"
+        aria-expanded="false"
+        aria-controls="workspace-sidebar-panel"
+        aria-label="Open workspace menu"
+      >
+        <span></span><span></span><span></span>
+      </button>
+      <a href="{{ url_for('dashboard' if is_owner else ('team_dashboard' if client_can_dashboard else ('logs' if client_team_role == 'auditor' else 'search'))) }}" class="workspace-mobile-topbar-logo">
+        <img src="{{ client_logo_url }}" alt="" width="24" height="24" />
+        <span class="workspace-mobile-topbar-logo-text client-org-brand" title="{{ client_org_name }}">{{ client_org_name }}</span>
+      </a>
+    </header>
+    <div class="client-main workspace-client-main">
+      {% block page %}{% endblock %}
+    </div>
+  </div>
+  {% include "partials/flash_toasts.html" %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script src="{{ url_for('static', filename='workspace-sidebar-mobile.js') }}" defer></script>
+<script src="{{ url_for('static', filename='client-toasts.js') }}" defer></script>
+{{ super() }}
+{% endblock %}
