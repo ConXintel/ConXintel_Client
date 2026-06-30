@@ -1,0 +1,209 @@
+{% extends "layout_workspace.html" %}
+{% block title %}Social Media & Breach Search — ConX Client{% endblock %}
+{% block page %}
+<section class="search-page-shell client-page-shell">
+  <div class="login-card-wrap search-card-wrap">
+    <div class="login-card-head">
+      <p class="text-xs font-mono uppercase tracking-wider text-cyan-400 mb-2">Workspace</p>
+      <h1 class="text-2xl font-bold mb-2">Social Media &amp; Breach Search</h1>
+      <p class="text-sm text-muted-foreground">
+        Unify your threat intelligence. Search across stealer logs, data breaches, leaked credentials, and critical OSINT data points through one centralized security hub.
+      </p>
+      {% if account %}
+      <p class="text-sm text-muted-foreground mt-2">
+        Shared credits: <strong>{{ account.credits }}</strong> · Period: {{ account.monthly_search_used }}/{{ account.monthly_search_limit }}
+      </p>
+      {% if account.credits is defined and account.credits <= 5 %}
+      <p class="login-flash login-flash--error mt-2">Shared credits low: {{ account.credits }} remaining.</p>
+      {% elif account.monthly_search_limit and account.monthly_search_used >= (account.monthly_search_limit * 0.9) %}
+      <p class="login-flash login-flash--error mt-2">Shared search cap almost reached: {{ account.monthly_search_used }}/{{ account.monthly_search_limit }}.</p>
+      {% endif %}
+      {% endif %}
+    </div>
+
+    <form class="login-form search-form" method="post" action="{{ url_for('social_breach') }}" autocomplete="off" data-social-breach-form>
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+      <div class="landing-preview-search-stack">
+        <div class="landing-preview-bar-area">
+          <div class="landing-preview-search-bar">
+            <svg class="landing-preview-bar-leading" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M2 12C2 6.5 6.5 2 12 2a10 10 0 0 1 8 4" />
+              <path d="M5 19.5C5.5 18 6 15 6 12c0-.7.12-1.37.34-2" />
+              <path d="M17.29 21.02c.12-.6.43-2.3.5-3.02" />
+              <path d="M12 10a2 2 0 0 0-2 2c0 1.02-.1 2.51-.26 4" />
+              <path d="M8.65 22c.21-.66.45-1.32.57-2" />
+              <path d="M14 13.12c0 2.38 0 6.38-1 8.88" />
+              <path d="M2 16h.01" />
+              <path d="M21.8 16c.2-2 .131-5.354 0-6" />
+              <path d="M9 6.8a6 6 0 0 1 9 5.2c0 .47 0 1.17-.02 2" />
+            </svg>
+            <label class="sr-only" for="social-breach-q">Search query</label>
+            <input
+              id="social-breach-q"
+              class="landing-preview-bar-input"
+              type="text"
+              name="q"
+              placeholder="IP Address"
+              autocapitalize="none"
+              spellcheck="false"
+              data-rotate-placeholder='["IP Address", "Domain", "Email", "Phone"]'
+            />
+            <button type="submit" class="landing-preview-bar-submit" aria-label="Search">
+              <span class="landing-preview-bar-submit-spinner" aria-hidden="true" hidden></span>
+              <svg class="landing-preview-bar-submit-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                <path d="M5 12h14M12 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {% if account %}
+        <p
+          class="search-cost-line text-muted-foreground"
+          data-credits="{{ account.credits }}"
+          {% if account.monthly_search_limit %}data-monthly-used="{{ account.monthly_search_used }}" data-monthly-limit="{{ account.monthly_search_limit }}"{% endif %}
+        >
+          1 credit per search{% if account.monthly_search_limit %} · {{ [account.monthly_search_limit - account.monthly_search_used, 0]|max }} searches left this period{% endif %}
+        </p>
+        {% else %}
+        <p class="search-cost-line text-muted-foreground">1 credit per search</p>
+        {% endif %}
+      </div>
+
+      <label class="search-policy-wrap">
+        <input type="checkbox" name="accept_policy" value="1" required />
+        <span>
+          I have read and accept the Terms and Privacy Policy.
+          I confirm this query is for lawful investigative use.
+        </span>
+      </label>
+    </form>
+
+    <p class="login-disclaimer">
+      Submitting confirms you accept responsibility for lawful use of results.
+    </p>
+  </div>
+</section>
+{% include "partials/search_loading_overlay.html" %}
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+  (function () {
+    var input = document.getElementById("social-breach-q");
+    if (input) {
+      var words = [];
+      try {
+        words = JSON.parse(input.getAttribute("data-rotate-placeholder") || "[]");
+      } catch (e) {
+        words = [];
+      }
+      var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (words.length && !reduce) {
+        var wordIdx = 0;
+        var charIdx = 0;
+        var deleting = false;
+
+        function tick() {
+          var word = words[wordIdx];
+          if (!deleting) {
+            charIdx += 1;
+            input.setAttribute("placeholder", word.slice(0, charIdx));
+            if (charIdx >= word.length) {
+              deleting = true;
+              return setTimeout(tick, 1400);
+            }
+            return setTimeout(tick, 90);
+          }
+          charIdx -= 1;
+          input.setAttribute("placeholder", word.slice(0, charIdx));
+          if (charIdx <= 0) {
+            deleting = false;
+            wordIdx = (wordIdx + 1) % words.length;
+            return setTimeout(tick, 250);
+          }
+          return setTimeout(tick, 45);
+        }
+        input.setAttribute("placeholder", "");
+        setTimeout(tick, 400);
+      }
+    }
+
+    var form = document.querySelector("[data-social-breach-form]");
+    var overlay = document.getElementById("search-loading-overlay");
+    var submitting = false;
+
+    function setSteps(phase) {
+      var steps = document.getElementById("search-job-steps");
+      if (!steps) return;
+      steps.setAttribute("data-active-step", phase);
+      var nodes = steps.querySelectorAll(".search-loading-overlay-step");
+      for (var i = 0; i < nodes.length; i++) {
+        var step = nodes[i].getAttribute("data-step");
+        var done = false;
+        var active = false;
+        if (phase === "scanning") {
+          done = step === "queued";
+          active = step === "scanning";
+        } else {
+          active = step === "queued";
+        }
+        nodes[i].classList.toggle("is-done", done);
+        nodes[i].classList.toggle("is-active", active);
+      }
+    }
+
+    function showOverlay(query) {
+      if (!overlay) return;
+      var kicker = overlay.querySelector(".search-loading-overlay-kicker");
+      var title = overlay.querySelector(".search-loading-overlay-title");
+      if (kicker) kicker.textContent = "Social & Breach";
+      if (title) title.textContent = "Breach & social scan in progress";
+
+      var queryEl = document.getElementById("search-job-query");
+      if (queryEl && query) {
+        queryEl.textContent = "Query: " + query;
+        queryEl.hidden = false;
+      }
+      var statusValue = document.getElementById("search-job-status-value");
+      var statusWrap = document.getElementById("search-job-status");
+      if (statusWrap) statusWrap.setAttribute("data-status", "running");
+      if (statusValue) statusValue.textContent = "Scanning";
+      var subtitle = document.getElementById("search-job-subtitle");
+      if (subtitle) subtitle.textContent = "Querying breach, stealer-log, and social sources…";
+
+      var actions = document.getElementById("search-job-actions");
+      if (actions) actions.hidden = true;
+      var estimate = document.getElementById("search-job-estimate");
+      if (estimate) estimate.hidden = false;
+
+      overlay.hidden = false;
+      overlay.setAttribute("aria-busy", "true");
+      overlay.classList.add("is-visible");
+      if (document.body) document.body.classList.add("search-page--loading");
+
+      setSteps("queued");
+      setTimeout(function () { setSteps("scanning"); }, 650);
+    }
+
+    if (form) {
+      form.addEventListener("submit", function () {
+        if (submitting) return;
+        submitting = true;
+        var btn = form.querySelector(".landing-preview-bar-submit");
+        var spinner = form.querySelector(".landing-preview-bar-submit-spinner");
+        var icon = form.querySelector(".landing-preview-bar-submit-icon");
+        if (spinner) spinner.hidden = false;
+        if (icon) icon.style.display = "none";
+        if (btn) {
+          btn.classList.add("is-submitting");
+          btn.setAttribute("aria-busy", "true");
+        }
+        showOverlay(input ? (input.value || "").trim() : "");
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -1538,6 +1538,56 @@ def search_page():
     )
 
 
+@app.route("/social-breach", methods=["GET", "POST"], endpoint="social_breach")
+@_require_login
+@_require_search
+def social_breach_page():
+    store = load_store()
+    account = _fetch_account(store)
+
+    if request.method == "POST":
+        query = (request.form.get("q") or "").strip()
+        if request.form.get("accept_policy") != "1":
+            flash("You must accept the Terms and Privacy Policy before searching.", "error")
+        elif not query:
+            flash("Enter a value to search (IP, domain, email, phone, etc.).", "error")
+        elif account and account.get("expired"):
+            flash("ConX account expired. Renew on ConX Billing.", "error")
+        else:
+            base, token = _conx_credentials(store)
+            try:
+                data, credits_left = conx_api.search(
+                    base, token, search_type="social_breach", fields={"q": query}
+                )
+                _finalize_client_search_success(
+                    store,
+                    search_type="social_breach",
+                    query_display=query,
+                    data=data,
+                    credits_left=credits_left,
+                    actor=_actor_label(),
+                )
+                return redirect(url_for("search_report"))
+            except ConXApiError as exc:
+                append_search_log(
+                    store,
+                    actor=_actor_label(),
+                    search_type="social_breach",
+                    query_value=query,
+                    ok=False,
+                    credits_remaining=None,
+                    error=str(exc),
+                )
+                append_audit(store, _actor_label(), "search_failed", str(exc))
+                save_store(store)
+                msg = str(exc)
+                if exc.code == "invalid_token":
+                    msg += " Update the API token under Settings (owner login)."
+                flash(msg, "error")
+
+    return render_template("social_breach.html", account=account)
+
+
 @app.route("/search/report/context", methods=["POST"], endpoint="search_report_context_sync")
 @_require_login
 def search_report_context_sync():
